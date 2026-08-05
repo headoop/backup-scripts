@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Weekly Backup to internal disk at 5:37 AM
+
+[Timer]
+OnCalendar=Sun *-*-* 05:37:00
+; OnCalendar=Wed *-*-* 13:46:00
+
+[Install]
+WantedBy=timers.target

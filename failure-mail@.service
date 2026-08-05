@@ -1,0 +1,6 @@
+[Unit]
+Description=Send failure mail to root for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/systemd-failure-mail.sh %i

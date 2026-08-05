@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly backup to internal disk
+After=network.target
+OnFailure=failure-mail@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup-weekly.sh
+; ExecStart=logger -t backup-weekly DEBUG backup weekly
+
+[Install]
+WantedBy=multi-user.target

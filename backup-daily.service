@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily backup to internal disk
+After=network.target
+OnFailure=failure-mail@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup-daily.sh
+; ExecStart=logger -t backup-daily DEBUG backup daily
+
+[Install]
+WantedBy=multi-user.target
