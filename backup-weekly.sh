@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-#
-# Christian Schult <cschult@devmem.de>
-#
+
 # Weekly backup: runs the rsnapshot gamma interval onto the backup
 # drive (rotates the oldest beta snapshot into the gamma set). Designed
 # to run as root from cron: quiet on success, so cron only sends mail
@@ -119,13 +117,13 @@ run_rsnapshot() {
 
 while getopts vt opt; do
   case $opt in
-    v) verbose=true ;;
-    t)
-      # a test run that hides its commands would be useless
-      dryrun=true
-      verbose=true
-      ;;
-    *) usage ;;
+  v) verbose=true ;;
+  t)
+    # a test run that hides its commands would be useless
+    dryrun=true
+    verbose=true
+    ;;
+  *) usage ;;
   esac
 done
 shift $((OPTIND - 1))

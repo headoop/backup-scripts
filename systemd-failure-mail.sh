@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-#
-# Christian Schult <cschult@devmem.de>
-#
+
 # Send a failure notification mail to root for a systemd unit. Meant to
 # be called from a template unit via OnFailure= (see
 # failure-mail@.service); mail delivery relies on the local Postfix

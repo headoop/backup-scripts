@@ -1,7 +1,3 @@
-# file: /home/cs/Dateien/src/git/backup-rsync-exclude/dot.rsync-exclude
-# git: /home/cs/Dateien/src/git/backup-rsync-exclude
-# author: Christian Schult <cschult@devmem.de>
-
 .cache/*
 .cargo/*
 .rustup/*

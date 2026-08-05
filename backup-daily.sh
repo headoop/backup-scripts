@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-#
-# Christian Schult <cschult@devmem.de>
-#
+
 # Daily backup: saves pacman package lists to $pac_backup and runs
 # rsnapshot onto the backup drive. Designed to run as root from cron:
 # quiet on success, so cron only sends mail when something goes wrong.
