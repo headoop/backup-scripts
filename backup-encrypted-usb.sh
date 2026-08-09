@@ -43,6 +43,19 @@ declare -a ALLOWED_USB_UUIDS=(
   # Add more UUIDs as needed
 )
 
+# Number of previous_N generations kept in addition to 'current'.
+DEFAULT_KEEP_PREVIOUS=2
+
+# Per-drive override for drives with room for a longer history. Every
+# generation shares its unchanged files with 'current' via hardlinks, so it
+# only costs the delta (a few GiB per run), not another full copy. A value of
+# 0 keeps 'current' only. Generations above the configured number are removed
+# by rotate_backups, so lowering a value here discards the extra backups.
+declare -A KEEP_PREVIOUS=(
+  ["4c5be60c-767e-46dc-8ca3-8fe4b4543c5d"]=4 # WD Elements 1.5 TB, black
+  ["e528486f-0d3a-49ba-9eeb-7310081ddeb7"]=6 # PSSD T9 (Samsung 2 TB external SSD)
+)
+
 # Base directory on the USB drive where backups will be stored.
 USB_BACKUP_BASE_DIR="punk_backups"
 
@@ -55,11 +68,12 @@ TEMP_MOUNT_POINT=""   # Temporary mount point for the USB drive
 SOURCE_MOUNTED=0      # 1 if this script mounted SOURCE_MOUNT_POINT
 USB_MOUNTED=0         # 1 if this script mounted the USB drive
 
+# Generations to keep on the target drive, set by resolve_keep_previous().
+KEEP_PREVIOUS_COUNT=""
+
 # Backup directories on the USB drive, set by prepare_target_dirs().
 TARGET_BASE_DIR=""
 CURRENT_BACKUP=""
-PREVIOUS_1=""
-PREVIOUS_2=""
 INCOMPLETE_BACKUP=""
 
 # --- Logging ---
@@ -159,6 +173,24 @@ find_target_drive() {
   exit 1
 }
 
+# Look up how many previous generations this drive keeps. Runs before the LUKS
+# device is opened, so a broken configuration fails without asking for the
+# password. A bad value is fatal rather than silently falling back to the
+# default: the default could be lower than intended, and rotate_backups would
+# then delete the generations the drive was supposed to keep.
+resolve_keep_previous() {
+  # No colon in the expansion: only a missing entry falls back to the default.
+  # An entry that is present but empty is a typo and must not pass silently.
+  KEEP_PREVIOUS_COUNT="${KEEP_PREVIOUS[$TARGET_UUID]-$DEFAULT_KEEP_PREVIOUS}"
+
+  if ! [[ "$KEEP_PREVIOUS_COUNT" =~ ^[0-9]+$ ]]; then
+    log_error "Invalid number of generations '$KEEP_PREVIOUS_COUNT' configured for UUID '$TARGET_UUID'. Must be a non-negative integer. Exiting."
+    exit 1
+  fi
+
+  log "Keeping $KEEP_PREVIOUS_COUNT previous generation(s) on this drive."
+}
+
 # Open the LUKS device (cryptsetup prompts for the password itself, so it
 # never ends up in a shell variable) and mount it on a temporary mount point.
 open_and_mount_usb() {
@@ -191,8 +223,6 @@ open_and_mount_usb() {
 prepare_target_dirs() {
   TARGET_BASE_DIR="$TEMP_MOUNT_POINT/$USB_BACKUP_BASE_DIR"
   CURRENT_BACKUP="$TARGET_BASE_DIR/current"
-  PREVIOUS_1="$TARGET_BASE_DIR/previous_1"
-  PREVIOUS_2="$TARGET_BASE_DIR/previous_2"
   INCOMPLETE_BACKUP="$TARGET_BASE_DIR/incomplete"
 
   mkdir -p "$TARGET_BASE_DIR" || {
@@ -231,30 +261,62 @@ run_backup() {
   fi
 }
 
-# Rotate the backups: current -> previous_1 -> previous_2, then promote the
-# freshly synced staging directory to 'current'. Only called after a
-# successful rsync, so any failure here aborts without losing the new backup.
+# Rotate the backups: current -> previous_1 -> ... -> previous_N, then promote
+# the freshly synced staging directory to 'current'. N is the number of
+# generations configured for this drive. Only called after a successful rsync,
+# so any failure here aborts without losing the new backup.
 rotate_backups() {
-  log "Rotating backups in '$TARGET_BASE_DIR'..."
+  local n="$KEEP_PREVIOUS_COUNT"
+  local dir index m
 
-  if [ -e "$PREVIOUS_2" ]; then
-    rm -rf "$PREVIOUS_2" || {
-      log_error "Failed to remove oldest backup '$PREVIOUS_2'. Exiting."
+  log "Rotating backups in '$TARGET_BASE_DIR' (keeping $n previous generation(s))..."
+
+  # Remove the generation that rotation pushes out, along with any left over
+  # from a previously higher setting. Iterating over what is actually there
+  # copes with gaps in the numbering.
+  for dir in "$TARGET_BASE_DIR"/previous_*; do
+    [ -e "$dir" ] || continue
+    index="${dir##*/previous_}"
+    [[ "$index" =~ ^[0-9]+$ ]] || continue
+    [ "$index" -ge "$n" ] || continue
+
+    if [ "$index" -gt "$n" ]; then
+      log "Removing 'previous_$index', beyond the configured $n generation(s)."
+    else
+      log "Removing oldest backup 'previous_$index'."
+    fi
+    rm -rf "$dir" || {
+      log_error "Failed to remove '$dir'. Exiting."
       exit 1
     }
-  fi
-  if [ -e "$PREVIOUS_1" ]; then
-    mv "$PREVIOUS_1" "$PREVIOUS_2" || {
-      log_error "Failed to rename '$PREVIOUS_1' to '$PREVIOUS_2'. Exiting."
-      exit 1
-    }
-  fi
+  done
+
+  # Shift the surviving generations one step down, oldest first.
+  for ((m = n - 1; m >= 1; m--)); do
+    if [ -e "$TARGET_BASE_DIR/previous_$m" ]; then
+      mv "$TARGET_BASE_DIR/previous_$m" "$TARGET_BASE_DIR/previous_$((m + 1))" || {
+        log_error "Failed to rename 'previous_$m' to 'previous_$((m + 1))'. Exiting."
+        exit 1
+      }
+    fi
+  done
+
+  # Retire 'current'. With no generations configured it is dropped instead:
+  # the new backup already holds its own hardlinks to the shared files.
   if [ -e "$CURRENT_BACKUP" ]; then
-    mv "$CURRENT_BACKUP" "$PREVIOUS_1" || {
-      log_error "Failed to rename '$CURRENT_BACKUP' to '$PREVIOUS_1'. Exiting."
-      exit 1
-    }
+    if [ "$n" -ge 1 ]; then
+      mv "$CURRENT_BACKUP" "$TARGET_BASE_DIR/previous_1" || {
+        log_error "Failed to rename '$CURRENT_BACKUP' to 'previous_1'. Exiting."
+        exit 1
+      }
+    else
+      rm -rf "$CURRENT_BACKUP" || {
+        log_error "Failed to remove '$CURRENT_BACKUP'. Exiting."
+        exit 1
+      }
+    fi
   fi
+
   mv "$INCOMPLETE_BACKUP" "$CURRENT_BACKUP" || {
     log_error "Failed to promote '$INCOMPLETE_BACKUP' to '$CURRENT_BACKUP'. Exiting."
     exit 1
@@ -284,6 +346,7 @@ trap cleanup EXIT
 
 mount_source
 find_target_drive
+resolve_keep_previous
 open_and_mount_usb
 prepare_target_dirs
 run_backup

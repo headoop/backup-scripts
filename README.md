@@ -103,17 +103,19 @@ What it does, in order:
    rsync source is the newest rsnapshot snapshot
    (`/mnt/backup/rsnapshot_backup/beta.0`).
 3. Searches for the first connected USB drive whose UUID is on the
-   whitelist in the script (`ALLOWED_USB_UUIDS`), opens it with
-   `cryptsetup luksOpen` and mounts it on a temporary mountpoint.
+   whitelist in the script (`ALLOWED_USB_UUIDS`), determines how many
+   generations that drive keeps, and only then opens it with
+   `cryptsetup luksOpen` and mounts it on a temporary mountpoint — a
+   misconfigured number aborts before the password prompt.
 4. Rsyncs into a staging directory `punk_backups/incomplete` on the USB
    drive, hardlinking files that are unchanged since the last backup
    (`--link-dest`) to save space. The existing backups stay untouched
    until the sync succeeds; a stale `incomplete` from an aborted run is
    reused and fixed up.
 5. Only after a successful sync rotates the backups:
-   `current` → `previous_1` → `previous_2` (the oldest is deleted),
+   `current` → `previous_1` → … → `previous_N` (the oldest is deleted),
    then promotes `incomplete` to `current`. The drive therefore holds
-   the three most recent backups.
+   the `N + 1` most recent backups.
 6. Cleanup on exit undoes only what the script itself did: unmounts the
    USB drive, closes the LUKS device, unmounts the source.
 
@@ -123,6 +125,25 @@ backup-encrypted-usb.sh    # no options; asks for the LUKS password
 
 To add a new target drive, append its filesystem UUID (see
 `blkid /dev/sdX1`) to the `ALLOWED_USB_UUIDS` array in the script.
+
+How many generations a drive keeps is `DEFAULT_KEEP_PREVIOUS` (2), unless
+the drive has its own entry in the `KEEP_PREVIOUS` array:
+
+| Drive                  | previous generations | backups on disk |
+| ---------------------- | -------------------- | --------------- |
+| 1.0 TB drives (default) | 2                    | 3               |
+| WD Elements 1.5 TB     | 4                    | 5               |
+| PSSD T9 (2 TB SSD)     | 6                    | 7               |
+
+Extra generations are cheap: every backup hardlinks its unchanged files
+against `current`, so one generation costs the delta of a single run (a
+few GiB), not another full copy. A value of `0` keeps `current` only.
+
+Lowering a value **discards** the surplus backups — on the next run the
+rotation deletes every `previous_N` above the configured number. An
+entry that is missing falls back to the default, but an entry that is
+present and malformed (empty, negative, non-numeric) aborts the script
+instead of silently rotating by the default.
 
 ### pacman-list-changed-files.sh
 

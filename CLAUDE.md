@@ -35,7 +35,7 @@ Checking changes (no test suite exists):
 
 Scheduling/notification chain: `backup-*.timer` → `backup-*.service` → on failure `OnFailure=failure-mail@%n.service` → `systemd-failure-mail.sh` mails `systemctl status` of the failed unit to root via sendmail (delivered through the local Postfix root alias). Timer `Description=` lines state the run time and must be kept in sync with `OnCalendar`.
 
-`backup-encrypted-usb.sh` is interactive (LUKS passphrase prompt): it rsyncs the newest snapshot into an `incomplete` staging dir on a whitelisted USB drive (`ALLOWED_USB_UUIDS` array in the script) and rotates `current` → `previous_1` → `previous_2` only after a successful sync. `pacman-list-changed-files.sh` is a standalone helper used by the daily script.
+`backup-encrypted-usb.sh` is interactive (LUKS passphrase prompt): it rsyncs the newest snapshot into an `incomplete` staging dir on a whitelisted USB drive (`ALLOWED_USB_UUIDS` array in the script) and rotates `current` → `previous_1` → … → `previous_N` only after a successful sync. `N` comes from `DEFAULT_KEEP_PREVIOUS` or a per-UUID entry in the `KEEP_PREVIOUS` array, is validated before the passphrase prompt (a malformed entry is fatal, a missing one falls back to the default), and `rotate_backups` deletes any `previous_N` above it — so lowering a value discards backups. `pacman-list-changed-files.sh` is a standalone helper used by the daily script.
 
 `rsync-excludes.txt` is data, not code: exclude patterns installed to `$(PREFIX)/share`, meant to be referenced from `/etc/rsnapshot.conf`'s `exclude_file` parameter. No script in this repo reads it directly.
 
