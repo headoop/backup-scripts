@@ -35,7 +35,7 @@ RSYNC_SOURCE_DIR="$SOURCE_MOUNT_POINT/rsnapshot_backup/beta.0"
 # You can find the UUID of a partition using the 'blkid' command (e.g., blkid /dev/sdb1).
 # The script uses the first of these drives that is connected.
 declare -a ALLOWED_USB_UUIDS=(
-  "82c0a9e2-4cc4-48f2-ac2f-a08b6e251713" # WD My Passport 259F 1004 (WD MY Passport Ultra 1.0 TB, white)
+  "e17a2c85-3453-403e-8ece-b5855116d3f6" # WD My Passport 259F 1004 (WD MY Passport Ultra 1.0 TB, white)
   "79f91189-9af5-4d58-bbbf-83a0578171e5" # WD My Passport 0827 1012 (WD My Passport Ultra 1.0 TB, blue)
   "2913b424-8f0b-4cc8-bf52-2c2678e84d45" # WD Elements 25A2 (WD Elements 1.0 TB, black)
   "e528486f-0d3a-49ba-9eeb-7310081ddeb7" # PSSD T9 (Samsung 2 TB external SSD)
