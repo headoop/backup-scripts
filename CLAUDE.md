@@ -41,6 +41,6 @@ Scheduling/notification chain: `backup-*.timer` → `backup-*.service` → on fa
 
 ## Conventions
 
-- Commit messages use a `<type>:` prefix (`feat:`, `fix:`, `docs:`, `add:`); work happens on the `testing` branch, `main` is the default.
+- Commit messages use a `<type>:` prefix (`feat:`, `fix:`, `docs:`, `add:`); work happens on the `develop` branch, `main` is the default.
 - New scripts follow the existing pattern: author header comment, `set -u`, explicit `PATH=/usr/bin:/usr/sbin`, config variables at the top, a `programs=()` array checked by `check_requirements`, `die`/`vlog` helpers.
 - README.md documents every script and the timer schedule — update it when behaviour, options, or schedules change.
